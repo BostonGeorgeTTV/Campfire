@@ -1,5 +1,5 @@
 # Campfire
-Simple campfire prop with toggler effect
+Simple campfire prop with toggle effect
 
 # Preview
 https://www.youtube.com/watch?v=HSjUIUKRHGs
