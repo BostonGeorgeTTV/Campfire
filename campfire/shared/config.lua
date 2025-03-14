@@ -2,6 +2,12 @@ Config = {}
 
 Config.Debug = false
 
+Config.Framework = "esx" -- "esx" = es_extended  or  "qb" = qb_core
+
+Config.Inventory = "ox" -- "ox" = ox_inventory  or  "qb" = qb-inventory
+
+Config.Target = "ox" -- "ox" = ox_target  or  "qb" = qb-target
+
 Config.Prop = 'log_campfire'
 
 Config.Item = 'campfire'
@@ -19,10 +25,11 @@ Config.Translate = {
                 "[ARROWS] - Move  \n" ..
                 "[Mouse Scroll] - Rotate  \n" ..
                 "[LALT] - Adjust Height  \n" ..
-                "[ESC]  - End Edit  \n"
+                "[ENTER]  - End Edit  \n"
 }
 
 Notify = function(msg, type, time)
     -- insert your notification system
-    ESX.ShowNotification(msg, type, time)
+    ESX.ShowNotification(msg, type, time) -- esx
+    --QBCore.Functions.Notify(msg, type, time)  -- qb-core
 end
