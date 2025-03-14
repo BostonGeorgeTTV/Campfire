@@ -2,12 +2,11 @@ fx_version 'cerulean'
 game { 'gta5' }
 author 'BostonGeorgeTTV'
 description 'Campfire'
-version '1.0.0'
+version '1.1.0'
 lua54 'yes'
 
 shared_scripts {
-    '@es_extended/imports.lua',
-    '@ox_lib/init.lua',
+    '@ox_lib/init.lua', -- comment if dont use it
     'shared/config.lua'
 }
 
