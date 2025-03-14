@@ -1,7 +1,16 @@
-ESX = exports["es_extended"]:getSharedObject()
+if Config.Framework == "esx" then
+    ESX = exports["es_extended"]:getSharedObject()
+elseif Config.Framework == "qb" then
+    QBCore = exports['qb-core']:GetCoreObject()
+end
 
 local loadedModels, SpawnedProps, activeFires  = {}, {}, {}
 local modelName = Config.Prop
+
+RegisterNetEvent("campfire:useCampfire")
+AddEventHandler("campfire:useCampfire", function()
+    StartPropPlacement()
+end)
 
 StartPropPlacement = function(slot)
     if not loadedModels[modelName] then
@@ -27,7 +36,11 @@ StartPropPlacement = function(slot)
 
     local editing = true
 
-    lib.showTextUI(Config.Translate.ControlsUI)
+    if Config.Framework == "esx" then
+        lib.showTextUI(Config.Translate.ControlsUI)
+    elseif Config.Framework == "qb" then
+        exports['qb-core']:DrawText(Config.Translate.ControlsUI, 'right')
+    end
 
     Citizen.CreateThread(function()
         while DoesEntityExist(prop) and editing do
@@ -50,9 +63,13 @@ StartPropPlacement = function(slot)
             elseif IsControlPressed(0, 19) then
                 local playerZ = GetEntityCoords(playerPed)
                 SetEntityCoords(prop, x, y, playerZ.z - 1.0)
-            elseif IsControlJustPressed(0, 322) then
+            elseif IsControlJustPressed(0, 201) then
                 editing = false
-                lib.hideTextUI()
+                if Config.Framework == "esx" then
+                    lib.hideTextUI()
+                elseif Config.Framework == "qb" then
+                    exports['qb-core']:HideText()
+                end
                 PlaceObjectOnGroundProperly(prop)
                 FreezeEntityPosition(prop, false)
                 local finalCoords = GetEntityCoords(prop)
@@ -110,9 +127,16 @@ AddEventHandler("campfire:spawnProps", function(propId, modelName, x, y, z, fina
         SetEntityCollision(obj, true, true)
 
         table.insert(SpawnedProps, { id = propId, object = obj })
+        TriggerServerEvent("campfire:addTarget", propId, modelName, x, y, z, finalHeading)
+    end
+end)
+
+RegisterNetEvent("campfire:addTarget")
+AddEventHandler("campfire:addTarget", function(propId, modelName, x, y, z, finalHeading)
+    if Config.Target == "ox" then
         exports.ox_target:addBoxZone({
             coords = vec3(x, y, z),
-            size = vec3(2, 2, 2),
+            size = vec3(1, 1, 1),
             rotation = finalHeading,
             debug = Config.Debug,
 
@@ -144,8 +168,8 @@ AddEventHandler("campfire:spawnProps", function(propId, modelName, x, y, z, fina
                     end
                 },
                 {
-                    name = "moonshine2_" .. propId,
-                    icon = "fa-solid fa-wine-bottle",
+                    name = "campfire_" .. propId,
+                    icon = "fa-solid fa-hand",
                     label = Config.Translate.TargetDisassembleLabel,
                     distance = 3.0,
                     onSelect = function(data)
@@ -175,7 +199,7 @@ AddEventHandler("campfire:spawnProps", function(propId, modelName, x, y, z, fina
                             end
 
                             TriggerServerEvent("campfire:removeProp", propId)
-                            exports.ox_target:removeZone(data.zone)
+                            TriggerServerEvent("campfire:oxRemoveTarget", data)
                             Notify(Config.Translate.Disassemble, "success", 5000)
                         end
                     end,
@@ -186,7 +210,98 @@ AddEventHandler("campfire:spawnProps", function(propId, modelName, x, y, z, fina
                 },
             }
         })
+    elseif Config.Target == "qb" then
+        exports['qb-target']:AddCircleZone("campfire"..propId, vector3(x, y, z), 1.0, {
+            name = "campfire"..propId,
+            debugPoly = Config.Debug,
+            }, {
+            options = {
+                {
+                    icon = 'fas fa-fire',
+                    label = Config.Translate.TargetFireOn,
+                    action = function(entity)
+                        TriggerServerEvent("campfire:startEffect", modelName, x, y, z)
+                    end,
+                    canInteract = function(entity, distance, data)
+                        local key = string.format("%.2f_%.2f_%.2f", x, y, z)
+                        if activeFires[key] ~= nil then return false end
+                        return true
+                    end,
+                },
+                {
+                    icon = 'fas fa-fire-extinguisher',
+                    label = Config.Translate.TargetFireOff,
+                    action = function(entity)
+                        TriggerServerEvent("campfire:stopEffect", x, y, z)
+                    end,
+                    canInteract = function(entity, distance, data)
+                        local key = string.format("%.2f_%.2f_%.2f", x, y, z)
+                        if activeFires[key] == nil then return false end
+                        return true
+                    end,
+                },
+                {
+                    icon = 'fas fa-hand',
+                    label = Config.Translate.TargetDisassembleLabel,
+                    action = function(entity)
+                        exports['progressbar']:Progress({
+                            name = "campfire_takeFire",
+                            duration = Config.ProgressTime,
+                            label = Config.Translate.TargetDisassembleLabel,
+                            useWhileDead = false,
+                            canCancel = true,
+                            controlDisables = {
+                                disableMovement = true,
+                                disableCarMovement = true,
+                                disableMouse = false,
+                                disableCombat = true,
+                            },
+                            animation = {
+                                animDict = "mini@repair",
+                                anim = "fixing_a_ped",
+                                flags = 49,
+                            },
+                            prop = {},
+                            propTwo = {}
+                         }, function(cancelled)
+                            if not cancelled then
+                                for i, spawnProp in ipairs(SpawnedProps) do
+                                    if spawnProp.id == propId then
+                                        DeleteEntity(spawnProp.object)
+                                        table.remove(SpawnedProps, i)
+                                        break
+                                    end
+                                end
+
+                                TriggerServerEvent("campfire:removeProp", propId)
+                                TriggerServerEvent("campfire:qbRemoveTarget", propId)
+                                Notify(Config.Translate.Disassemble, "success", 5000)
+                            else
+                                StopAnimTask(PlayerPedId(), "mini@repair", "fixing_a_ped", 1.0)
+                                return
+                            end
+                         end)
+                    end,
+                    canInteract = function(entity, distance, data)
+                        local key = string.format("%.2f_%.2f_%.2f", x, y, z)
+                        if fireFx ~= nil and activeFires[key] ~= nil then return false end
+                        return true
+                    end,
+                }
+            },
+            distance = 3.0,
+        })
     end
+end)
+
+RegisterNetEvent("campfire:oxRemoveTarget")
+AddEventHandler("campfire:oxRemoveTarget", function(data)
+    exports.ox_target:removeZone(data.zone)
+end)
+
+RegisterNetEvent("campfire:qbRemoveTarget")
+AddEventHandler("campfire:qbRemoveTarget", function(propId)
+    exports['qb-target']:RemoveZone("campfire"..propId)
 end)
 
 RegisterNetEvent("campfire:deletePropById")
